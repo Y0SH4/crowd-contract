@@ -30,6 +30,7 @@ struct Account {
   uint256 rankUpdatedAt;
   uint256 rankRewardClaimedAt;
   bool isLeader;
+  uint256 omzet;
 }
 
 /**
@@ -87,6 +88,7 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
   // track transfer account to another address
   event AccountTransferred(address from, address to);
   event LeaderStatusChanged(address indexed user, bool isLeader);
+  event OmzetUpdated(address indexed buyer, uint256 amount);
 
   mapping(address => Account) public accounts;
   mapping(address => uint256) public rewards;
@@ -100,6 +102,7 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
 
   // PoolReward public poolReward;
   RewardValues public rewardValues;
+  address public nftContractAddress;
 
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() initializer {}
@@ -141,6 +144,14 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
     adminAccount.isRegistered = true;
   }
 
+  function setNftContractAddress(address _nftContractAddress) public onlyOwner {
+    require(
+      _nftContractAddress != address(0),
+      "NFT contract address cannot be zero"
+    );
+    nftContractAddress = _nftContractAddress;
+  }
+
   /**
    * @dev update registration fee and recalculate reward value
    */
@@ -153,6 +164,84 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
     rewardValues.globalOmzet = feeValue.mul(17).div(100);
     rewardValues.nftSales = feeValue.mul(14).div(100);
     emit RegistrationFeeUpdated(feeValue);
+  }
+
+  /**
+   * @dev Update omzet for buyer and all uplines up to 20 levels
+   * @param buyer The address of NFT buyer
+   * @param amount The NFT price amount
+   */
+  function updateOmzet(address buyer, uint256 amount) external {
+    require(
+      msg.sender == nftContractAddress,
+      "Only NFT contract can call this"
+    );
+    require(nftContractAddress != address(0), "NFT contract not set");
+    require(accounts[buyer].isRegistered, "Buyer must be registered");
+
+    // Update omzet untuk buyer sendiri
+    accounts[buyer].omzet = accounts[buyer].omzet.add(amount);
+
+    // Update omzet untuk semua upline hingga 20 level
+    Account storage _currentUser = accounts[buyer];
+    for (uint256 i = 0; i < 20; i++) {
+      address _parent = _currentUser.referrer;
+
+      // Jika sudah sampai root atau tidak ada referrer, break
+      if (_parent == address(0)) {
+        break;
+      }
+
+      // Update omzet parent
+      Account storage _parentAccount = accounts[_parent];
+      _parentAccount.omzet = _parentAccount.omzet.add(amount);
+
+      // Pindah ke parent untuk iterasi selanjutnya
+      _currentUser = _parentAccount;
+    }
+
+    emit OmzetUpdated(buyer, amount);
+  }
+
+  /**
+   * @dev Get total omzet of an address
+   * @param addr The address to check
+   * @return Total omzet amount
+   */
+  function getOmzet(address addr) public view returns (uint256) {
+    return accounts[addr].omzet;
+  }
+
+  /**
+   * @dev Get omzet and other account info
+   * @param addr The address to check
+   * @return rank The rank of the account
+   * @return registered Whether the account is registered
+   * @return referrer The referrer address
+   * @return downlineCount The number of downlines
+   * @return omzet The total omzet of the account
+   */
+  function getAccountInfo(
+    address addr
+  )
+    public
+    view
+    returns (
+      Rank rank,
+      bool registered,
+      address referrer,
+      uint256 downlineCount,
+      uint256 omzet
+    )
+  {
+    Account storage account = accounts[addr];
+    return (
+      account.rank,
+      account.isRegistered,
+      account.referrer,
+      account.downlineCount,
+      account.omzet
+    );
   }
 
   /**
@@ -659,7 +748,7 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
   function transferAccount(address _from, address _to) public onlyOwner {
     Account storage userAccount = accounts[_from];
 
-    // transfer account to new address
+    // Transfer semua data account ke address baru
     Account storage toAccount = accounts[_to];
     toAccount.rank = userAccount.rank;
     toAccount.isRegistered = userAccount.isRegistered;
@@ -669,8 +758,9 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
     toAccount.rankUpdatedAt = userAccount.rankUpdatedAt;
     toAccount.rankRewardClaimedAt = userAccount.rankRewardClaimedAt;
     toAccount.isLeader = userAccount.isLeader;
+    toAccount.omzet = userAccount.omzet;
 
-    // delete old account or change status
+    // Reset data account lama
     userAccount.rank = Rank.Newbie;
     userAccount.isRegistered = false;
     userAccount.referrer = address(0);
@@ -679,8 +769,9 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
     userAccount.rankUpdatedAt = 0;
     userAccount.rankRewardClaimedAt = 0;
     userAccount.isLeader = false;
+    userAccount.omzet = 0; // TAMBAHAN: Reset omzet
 
-    // transfer reward to new address
+    // Transfer rewards
     uint currentReward = rewards[_from];
     rewards[_to] = currentReward;
     rewards[_from] = 0;

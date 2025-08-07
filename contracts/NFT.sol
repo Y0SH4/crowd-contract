@@ -149,9 +149,9 @@ contract NftContract is
     Rank rank;
     bool isLeader;
     uint256 nftBalance;
-    (, , , , , , , isLeader) = netref.accounts(referrer);
+    (, , , , , , , isLeader, ) = netref.accounts(referrer);
     nftBalance = balanceOf(referrer);
-    (rank, , , , , , , ) = netref.accounts(referrer);
+    (rank, , , , , , , , ) = netref.accounts(referrer);
 
     // Jika adalah leader, langsung qualified untuk 10 level
     if (isLeader) {
@@ -175,16 +175,24 @@ contract NftContract is
   function claimBuyReward() public {
     require(buyReward[msg.sender] > 0, "No Reward");
     uint256 rewardValue = buyReward[msg.sender];
+    uint256 tenPercent = (rewardValue * 10) / 100;
     buyReward[msg.sender] = 0;
     reservedBalance = reservedBalance - rewardValue;
+    address feeReceiver;
+    (, , , , feeReceiver) = netref.addressList();
+    currency.transfer(feeReceiver, tenPercent);
     currency.transfer(msg.sender, rewardValue);
   }
 
   function claimFarmReward() public {
     require(farmReward[msg.sender] > 0, "No Reward");
     uint256 rewardValue = farmReward[msg.sender];
+    uint256 tenPercent = (rewardValue * 10) / 100;
+
     farmReward[msg.sender] = 0;
     reservedBalance = reservedBalance - rewardValue;
+    (, , , , address feeReceiver) = netref.addressList();
+    currency.transfer(feeReceiver, tenPercent);
     currency.transfer(msg.sender, rewardValue);
   }
 
@@ -217,7 +225,7 @@ contract NftContract is
 
   function getMyRankReward() public view returns (uint256) {
     Rank rank;
-    (rank, , , , , , , ) = netref.accounts(msg.sender);
+    (rank, , , , , , , , ) = netref.accounts(msg.sender);
     if (rankRewardClaimedAt[msg.sender] >= rankRewardClaimOpenedAt) {
       return 0;
     }
@@ -256,7 +264,7 @@ contract NftContract is
 
   function claimRankReward() public {
     Rank rank;
-    (rank, , , , , , , ) = netref.accounts(msg.sender);
+    (rank, , , , , , , , ) = netref.accounts(msg.sender);
     require(rank != Rank.Newbie, "not eligible");
     require(
       rankRewardClaimedAt[msg.sender] < rankRewardClaimOpenedAt,
@@ -466,7 +474,7 @@ contract NftContract is
 
     address referrer;
     Rank rank;
-    (rank, , referrer, , , , , ) = netref.accounts(msg.sender);
+    (rank, , referrer, , , , , , ) = netref.accounts(msg.sender);
 
     for (uint8 i = 0; i < 10; i++) {
       if (referrer == address(0)) {
@@ -491,7 +499,7 @@ contract NftContract is
         );
       }
 
-      (, , referrer, , , , , ) = netref.accounts(referrer);
+      (, , referrer, , , , , , ) = netref.accounts(referrer);
     }
 
     currency.transfer(msg.sender, reward);
@@ -510,21 +518,26 @@ contract NftContract is
     uint256 valueLeft = price;
     address referrer;
     bool isRegistered;
-    (, isRegistered, referrer, , , , , ) = netref.accounts(msg.sender);
+    (, isRegistered, referrer, , , , , , ) = netref.accounts(msg.sender);
 
     if (!isRegistered) {
       bumper = _card.upperPrice - price;
     }
 
+    // Transfer payment
     currency.transferFrom(msg.sender, address(this), price + bumper);
 
+    // ===== TAMBAHAN: Update omzet di network =====
+    netref.updateOmzet(msg.sender, price);
+    // ============================================
+
+    // Existing reward distribution logic tetap sama
     for (uint8 i = 0; i < 3; i++) {
       if (referrer == address(0)) {
         break;
       }
 
       if (i == 0) {
-        // upper level 1
         uint256 insentif = (price * 8) / 100;
         valueLeft = valueLeft - insentif;
         buyReward[referrer] += insentif;
@@ -532,7 +545,6 @@ contract NftContract is
       }
 
       if (i == 1) {
-        // upper level 2
         uint256 insentif = (price * 3) / 100;
         valueLeft = valueLeft - insentif;
         buyReward[referrer] += insentif;
@@ -540,38 +552,34 @@ contract NftContract is
       }
 
       if (i == 2) {
-        // upper level 3
         uint256 insentif = (price * 2) / 100;
         valueLeft = valueLeft - insentif;
         buyReward[referrer] += insentif;
         reservedBalance = reservedBalance + insentif;
       }
 
-      (, isRegistered, referrer, , , , , ) = netref.accounts(referrer);
+      (, isRegistered, referrer, , , , , , ) = netref.accounts(referrer);
     }
 
-    // value for developer
+    // Rest of existing buyCard logic remains the same...
     uint256 developerVal = (price * 10) / 100;
     valueLeft = valueLeft - developerVal;
     reservedBalance = reservedBalance + developerVal;
     buyReward[adminAddress] += developerVal + bumper;
     totalNftValueMap[msg.sender] += _card.price;
 
-    // store global omzet value 17%
     uint256 globalOmzetVal = (price * 17) / 100;
     storeGlobalOmzet(globalOmzetVal);
 
-    //================================= Developer 2 =======================
     uint256 developer2Val = (price * 10) / 100;
     buyReward[developer2] += developer2Val;
     reservedBalance = reservedBalance + developer2Val;
 
     uint256 tokenId = _tokenIdCounter.current();
 
-    // apply random farming reward percentage
     if (_card.isFarming) {
       farmingCard[tokenId].lastFarm = block.timestamp;
-      uint256 rand = _random(100); // 0 - 99
+      uint256 rand = _random(100);
       if (rand >= 0 && rand <= 59) {
         farmingCard[tokenId].percentage = 7;
       }
