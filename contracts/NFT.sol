@@ -51,6 +51,13 @@ contract NftContract is
   uint256 public rankRewardClaimOpenedAt;
   mapping(address => uint256) public totalNftValueMap;
 
+  event MatchingBonusDistributed(
+    address indexed farmer,
+    address indexed referrer,
+    uint8 level,
+    uint256 amount
+  );
+
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() initializer {}
 
@@ -129,6 +136,40 @@ contract NftContract is
     uint256 lasAccoutn = totalNftValueMap[from];
     totalNftValueMap[to] += lasAccoutn;
     totalNftValueMap[from] = 0;
+  }
+
+  function _isMatchingQualified(
+    address referrer,
+    uint8 level
+  ) private view returns (bool) {
+    if (referrer == address(0)) {
+      return false;
+    }
+
+    Rank rank;
+    bool isLeader;
+    uint256 nftBalance;
+    (, , , , , , , isLeader) = netref.accounts(referrer);
+    nftBalance = balanceOf(referrer);
+    (rank, , , , , , , ) = netref.accounts(referrer);
+
+    // Jika adalah leader, langsung qualified untuk 10 level
+    if (isLeader) {
+      return true;
+    }
+
+    // Non-leader harus punya NFT minimal
+    if (nftBalance == 0) {
+      return false;
+    }
+
+    // Level 1-5: Cukup punya NFT
+    if (level < 5) {
+      return true;
+    }
+
+    // Level 6-10: Harus punya NFT + minimal rank Rare
+    return rank != Rank.Newbie;
   }
 
   function claimBuyReward() public {
@@ -426,6 +467,7 @@ contract NftContract is
     address referrer;
     Rank rank;
     (rank, , referrer, , , , , ) = netref.accounts(msg.sender);
+
     for (uint8 i = 0; i < 10; i++) {
       if (referrer == address(0)) {
         break;
@@ -434,23 +476,22 @@ contract NftContract is
       if (balanceLeftForUpline < uplineReward) {
         break;
       }
-      uint256 nftBalance = balanceOf(referrer);
 
-      address referrer2;
-      Rank rank2;
-      (rank2, , referrer2, , , , , ) = netref.accounts(referrer);
-
-      if (nftBalance > 0 && i < 5) {
+      if (_isMatchingQualified(referrer, i)) {
         farmReward[referrer] += uplineReward;
         reservedBalance = reservedBalance + uplineReward;
         balanceLeftForUpline = balanceLeftForUpline - uplineReward;
-      } else if (nftBalance > 0 && rank2 != Rank.Newbie) {
-        farmReward[referrer] += uplineReward;
-        reservedBalance = reservedBalance + uplineReward;
-        balanceLeftForUpline = balanceLeftForUpline - uplineReward;
+
+        // Emit event untuk tracking
+        emit MatchingBonusDistributed(
+          msg.sender,
+          referrer,
+          i + 1,
+          uplineReward
+        );
       }
 
-      (rank, , referrer, , , , , ) = netref.accounts(referrer);
+      (, , referrer, , , , , ) = netref.accounts(referrer);
     }
 
     currency.transfer(msg.sender, reward);
