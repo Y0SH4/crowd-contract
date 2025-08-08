@@ -383,7 +383,8 @@ contract NftContract is
     PoolReward storage superRareReward = poolRewards[2];
     // 18.57142857%
     superRareReward.valueLeft =
-      (globalOmzet.valueLeft * 1857142857) / 10000000000;
+      (globalOmzet.valueLeft * 1857142857) /
+      10000000000;
     superRareReward.claimable = superRareReward.valueLeft;
     valueLeft = valueLeft - superRareReward.valueLeft;
 
@@ -579,20 +580,17 @@ contract NftContract is
 
     if (_card.isFarming) {
       farmingCard[tokenId].lastFarm = block.timestamp;
-      uint256 rand = _random(100);
-      if (rand >= 0 && rand <= 59) {
+      uint256 rand = _random(1000);
+
+      if (rand <= 349) {
         farmingCard[tokenId].percentage = 7;
-      }
-      if (rand > 59 && rand <= 88) {
+      } else if (rand <= 649) {
         farmingCard[tokenId].percentage = 8;
-      }
-      if (rand > 88 && rand <= 96) {
+      } else if (rand <= 849) {
         farmingCard[tokenId].percentage = 9;
-      }
-      if (rand > 96 && rand <= 98) {
+      } else if (rand <= 949) {
         farmingCard[tokenId].percentage = 10;
-      }
-      if (rand == 99) {
+      } else {
         farmingCard[tokenId].percentage = 15;
       }
     }
