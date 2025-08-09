@@ -262,6 +262,7 @@ contract NftContract is
     return 0;
   }
 
+  // Leadership bonus
   function claimRankReward() public {
     Rank rank;
     (rank, , , , , , , , ) = netref.accounts(msg.sender);
@@ -383,8 +384,7 @@ contract NftContract is
     PoolReward storage superRareReward = poolRewards[2];
     // 18.57142857%
     superRareReward.valueLeft =
-      (globalOmzet.valueLeft * 1857142857) /
-      10000000000;
+      (globalOmzet.valueLeft * 1857142857) / 10000000000;
     superRareReward.claimable = superRareReward.valueLeft;
     valueLeft = valueLeft - superRareReward.valueLeft;
 
@@ -527,10 +527,7 @@ contract NftContract is
 
     // Transfer payment
     currency.transferFrom(msg.sender, address(this), price + bumper);
-
-    // ===== TAMBAHAN: Update omzet di network =====
     netref.updateOmzet(msg.sender, price);
-    // ============================================
 
     // Existing reward distribution logic tetap sama
     for (uint8 i = 0; i < 3; i++) {
@@ -563,16 +560,18 @@ contract NftContract is
     }
 
     // Rest of existing buyCard logic remains the same...
-    uint256 developerVal = (price * 10) / 100;
+    // Admin reward 8.5% (dari 10%)
+    uint256 developerVal = (price * 85) / 1000;
     valueLeft = valueLeft - developerVal;
     reservedBalance = reservedBalance + developerVal;
     buyReward[adminAddress] += developerVal + bumper;
     totalNftValueMap[msg.sender] += _card.price;
 
-    uint256 globalOmzetVal = (price * 17) / 100;
+    // Global omzet 20% (dari 17%)
+    uint256 globalOmzetVal = (price * 20) / 100;
     storeGlobalOmzet(globalOmzetVal);
 
-    uint256 developer2Val = (price * 10) / 100;
+    uint256 developer2Val = (price * 85) / 1000;
     buyReward[developer2] += developer2Val;
     reservedBalance = reservedBalance + developer2Val;
 

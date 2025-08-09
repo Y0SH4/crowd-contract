@@ -89,6 +89,7 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
   event AccountTransferred(address from, address to);
   event LeaderStatusChanged(address indexed user, bool isLeader);
   event OmzetUpdated(address indexed buyer, uint256 amount);
+  event NftSalesRewardPaid(address to, uint256 amount);
 
   mapping(address => Account) public accounts;
   mapping(address => uint256) public rewards;
@@ -134,11 +135,11 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
     accounts[_root3Address].isRegistered = true;
     accounts[_root3Address].referrer = _root2Address;
 
-    rewardValues.lvl1 = _registrationFee.mul(40).div(100);
-    rewardValues.lvl2 = _registrationFee.mul(10).div(100);
+    rewardValues.lvl1 = _registrationFee.mul(30).div(100);
+    rewardValues.lvl2 = _registrationFee.mul(15).div(100);
     rewardValues.lvl3 = _registrationFee.mul(5).div(100);
-    rewardValues.globalOmzet = _registrationFee.mul(17).div(100);
-    rewardValues.nftSales = _registrationFee.mul(14).div(100);
+    rewardValues.globalOmzet = 0;
+    rewardValues.nftSales = _registrationFee.mul(25).div(100);
 
     Account storage adminAccount = accounts[_adminAddress];
     adminAccount.isRegistered = true;
@@ -158,11 +159,11 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
   function updateRegistrationFee(uint256 feeValue) public onlyOwner {
     registrationFee = feeValue;
 
-    rewardValues.lvl1 = feeValue.mul(40).div(100);
-    rewardValues.lvl2 = feeValue.mul(10).div(100);
+    rewardValues.lvl1 = feeValue.mul(30).div(100);
+    rewardValues.lvl2 = feeValue.mul(15).div(100);
     rewardValues.lvl3 = feeValue.mul(5).div(100);
-    rewardValues.globalOmzet = feeValue.mul(17).div(100);
-    rewardValues.nftSales = feeValue.mul(14).div(100);
+    rewardValues.globalOmzet = 0;
+    rewardValues.nftSales = feeValue.mul(25).div(100);
     emit RegistrationFeeUpdated(feeValue);
   }
 
@@ -315,10 +316,11 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
     return accounts[addr].isRegistered;
   }
 
-  function storeNftSalesReward() private {
-    PoolReward storage nftSales = poolRewards[0];
-    nftSales.claimable = nftSales.claimable.add(rewardValues.nftSales);
-  }
+  // i commented this function because it is not used anymore the velue is sent directly to feeReceiver
+  // function storeNftSalesReward() private {
+  //   PoolReward storage nftSales = poolRewards[0];
+  //   nftSales.claimable = nftSales.claimable.add(rewardValues.nftSales);
+  // }
 
   function storeGlobalOmzetReward() private {
     PoolReward storage globalOmzet = poolRewards[1];
@@ -429,24 +431,25 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
     globalOmzet.valueLeft = globalOmzet.valueLeft.sub(rewardAmount);
   }
 
-  function claimNftSales() public returns (bool) {
-    PoolReward storage nftSales = poolRewards[0];
-    nftSales.valueLeft = nftSales.claimable;
+  // i commented this function because it is not used anymore the velue is sent directly to feeReceiver
+  // function claimNftSales() public returns (bool) {
+  //   PoolReward storage nftSales = poolRewards[0];
+  //   nftSales.valueLeft = nftSales.claimable;
 
-    require(nftSales.claimable > 0, "Reward is already claimed");
-    require(
-      msg.sender == addressList.feeReceiver,
-      "Only fee receiver can claim"
-    );
+  //   require(nftSales.claimable > 0, "Reward is already claimed");
+  //   require(
+  //     msg.sender == addressList.feeReceiver,
+  //     "Only fee receiver can claim"
+  //   );
 
-    payable(addressList.feeReceiver).transfer(nftSales.valueLeft);
-    emit NftSalesRewardClaimed(msg.sender, nftSales.valueLeft);
+  //   payable(addressList.feeReceiver).transfer(nftSales.valueLeft);
+  //   emit NftSalesRewardClaimed(msg.sender, nftSales.valueLeft);
 
-    //reset the pool
-    nftSales.claimable = nftSales.claimable.sub(nftSales.valueLeft);
-    nftSales.valueLeft = 0;
-    return true;
-  }
+  //   //reset the pool
+  //   nftSales.claimable = nftSales.claimable.sub(nftSales.valueLeft);
+  //   nftSales.valueLeft = 0;
+  //   return true;
+  // }
 
   function changeJobAddress(address _feeReceiver) public onlyOwner {
     require(_feeReceiver != address(0), "Fee Address Required");
@@ -658,8 +661,8 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
       // adjust rank
       _parentAccount.downlineCount = _parentAccount.downlineCount.add(1);
       if (
-        _parentAccount.downlineCount >= 100 &&
-        _parentAccount.downlineCount < 500 &&
+        _parentAccount.downlineCount >= 50 &&
+        _parentAccount.downlineCount < 250 &&
         _parentAccount.rank != Rank.Rare
       ) {
         _parentAccount.rank = Rank.Rare;
@@ -668,8 +671,8 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
       }
 
       if (
-        _parentAccount.downlineCount >= 500 &&
-        _parentAccount.downlineCount < 2000 &&
+        _parentAccount.downlineCount >= 250 &&
+        _parentAccount.downlineCount < 1000 &&
         _parentAccount.rank != Rank.SuperRare
       ) {
         _parentAccount.rank = Rank.SuperRare;
@@ -679,8 +682,8 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
       }
 
       if (
-        _parentAccount.downlineCount >= 2000 &&
-        _parentAccount.downlineCount < 6000 &&
+        _parentAccount.downlineCount >= 1000 &&
+        _parentAccount.downlineCount < 3000 &&
         _parentAccount.rank != Rank.Epic
       ) {
         _parentAccount.rank = Rank.Epic;
@@ -690,8 +693,8 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
       }
 
       if (
-        _parentAccount.downlineCount >= 6000 &&
-        _parentAccount.downlineCount < 12000 &&
+        _parentAccount.downlineCount >= 3000 &&
+        _parentAccount.downlineCount < 6000 &&
         _parentAccount.rank != Rank.Legend
       ) {
         _parentAccount.rank = Rank.Legend;
@@ -701,7 +704,7 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
       }
 
       if (
-        _parentAccount.downlineCount >= 12000 &&
+        _parentAccount.downlineCount >= 6000 &&
         _parentAccount.rank != Rank.SuperLegend
       ) {
         _parentAccount.rank = Rank.SuperLegend;
@@ -713,15 +716,17 @@ contract CrowdNetwork is Initializable, OwnableUpgradeable {
       _currentUser = _parentAccount;
     }
 
-    // nft sales 14%
-    storeNftSalesReward();
-    restAmount = restAmount.sub(rewardValues.nftSales);
-    emit PoolTopSalesReserved(msg.sender, rewardValues.nftSales);
+    // nft sales 25%
+    // UPDATED: NFT sales pool 25% - send directly to feeReceiver
+    if (rewardValues.nftSales > 0) {
+      payable(addressList.feeReceiver).transfer(rewardValues.nftSales);
+      restAmount = restAmount.sub(rewardValues.nftSales);
+      emit NftSalesRewardPaid(addressList.feeReceiver, rewardValues.nftSales);
+    }
 
-    // global omzet 17%
-    storeGlobalOmzetReward();
-    restAmount = restAmount.sub(rewardValues.globalOmzet);
-    emit PoolGlobalOmzetReserved(msg.sender, rewardValues.globalOmzet);
+    // REMOVED: global omzet is now 0%, so no need to store
+    // storeGlobalOmzetReward();
+    // restAmount = restAmount.sub(rewardValues.globalOmzet);
 
     // the rest percentage goes to admin / petmoon
     rewards[addressList.admin] = rewards[addressList.admin].add(restAmount);
